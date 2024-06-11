@@ -1,11 +1,11 @@
 package framework
 
 import (
-	httpServer "github.com/kloudlite/api/pkg/http-server"
-	"github.com/kloudlite/api/pkg/logging"
-	"github.com/kloudlite/api/pkg/nats"
 	"github.com/kloudlite/kloudmeter/internal/app"
 	"github.com/kloudlite/kloudmeter/internal/env"
+	httpServer "github.com/kloudlite/kloudmeter/pkg/http-server"
+	"github.com/kloudlite/kloudmeter/pkg/logging"
+	"github.com/kloudlite/kloudmeter/pkg/nats"
 	"go.uber.org/fx"
 )
 
@@ -22,7 +22,7 @@ var Module = fx.Module(
 
 	fx.Provide(func(ev *env.Env, logger logging.Logger) (*nats.Client, error) {
 		return nats.NewClient(ev.NatsURL, nats.ClientOpts{
-			Name:   "kloudmeter",
+			Name:   "meters",
 			Logger: logger,
 		})
 	}),

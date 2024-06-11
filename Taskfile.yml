@@ -1,0 +1,22 @@
+version: 3
+
+tasks:
+  default:
+    cmds:
+      - nodemon -q -e 'go' --signal SIGTERM --exec "echo '# building' && task build && echo '# build success' && task run || exit"
+
+  build:
+    cmds:
+      - go build -o bin/app main.go
+
+  run:
+    cmds:
+      - ./bin/app
+  nats:setup:
+    cmds:
+      - nats kv add meters 
+      - nats kv add readings 
+      - nats stream add meters --subjects="meters.>" --defaults
+  nats:start:
+    cmds:
+      - nats-server -js -c nats.conf

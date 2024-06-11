@@ -2,85 +2,173 @@ package app
 
 import (
 	"context"
-	"errors"
+	"crypto/md5"
+	"fmt"
+	"net/http"
+
 	"github.com/gofiber/fiber/v2"
-	"github.com/kloudlite/api/pkg/grpc"
-	httpServer "github.com/kloudlite/api/pkg/http-server"
-	"github.com/kloudlite/api/pkg/kv"
-	"github.com/kloudlite/api/pkg/logging"
-	"github.com/kloudlite/api/pkg/messaging"
-	msg_nats "github.com/kloudlite/api/pkg/messaging/nats"
-	"github.com/kloudlite/api/pkg/nats"
+	"github.com/kloudlite/kloudmeter/pkg/functions"
+	httpServer "github.com/kloudlite/kloudmeter/pkg/http-server"
+	"github.com/kloudlite/kloudmeter/pkg/logging"
+	"github.com/nats-io/nats.go/jetstream"
+
 	"github.com/kloudlite/kloudmeter/internal/domain"
 	"github.com/kloudlite/kloudmeter/internal/domain/entities"
 	"github.com/kloudlite/kloudmeter/internal/env"
-	"net/http"
+
+	"github.com/kloudlite/kloudmeter/pkg/kv"
+	msg_nats "github.com/kloudlite/kloudmeter/pkg/messaging/nats"
+	"github.com/kloudlite/kloudmeter/pkg/messaging/types"
+	"github.com/kloudlite/kloudmeter/pkg/nats"
 
 	"go.uber.org/fx"
 )
 
-type (
-	IAMGrpcClient grpc.Client
-)
+// var TOPIC_NAME_PREFIX = "meters:event.*"
 
-var TOPIC_NAME_PREFIX = "ntfy:message.*"
-
-type MeterConsumer messaging.Consumer
-
-type CommsGrpcServer grpc.Server
+// type MeterConsumer messaging.Consumer
 
 var Module = fx.Module("app",
 
-	fx.Provide(func(jc *nats.JetstreamClient) (meter kv.Repo[*entities.Meter], err error) {
-		return kv.NewNatsKVRepo[*entities.Meter](context.TODO(), "meters", jc)
-	}),
+	kv.NewNatsKvRepoFx[*entities.Meter]("meters"),
+	kv.NewNatsKvRepoFx[*entities.Reading]("readings"),
+
 	domain.Module,
 
-	fx.Provide(func(jc *nats.JetstreamClient, ev *env.Env, logger logging.Logger) (MeterConsumer, error) {
-		topic := string(TOPIC_NAME_PREFIX)
-		consumerName := "ntfy:message"
-		return msg_nats.NewJetstreamConsumer(context.TODO(), jc, msg_nats.JetstreamConsumerArgs{
-			Stream: ev.MeterNatsStream,
-			ConsumerConfig: msg_nats.ConsumerConfig{
-				Name:        consumerName,
-				Durable:     consumerName,
-				Description: "this consumer reads message from a subject dedicated to errors, that occurred when the resource was applied at the agent",
-				FilterSubjects: []string{
-					topic,
-				},
+	fx.Provide(func(jc *nats.JetstreamClient, ev *env.Env, logger logging.Logger) domain.MeterProducer {
+		return msg_nats.NewJetstreamProducer(jc)
+	}),
+
+	fx.Invoke(func(lf fx.Lifecycle, d domain.Domain, logr logging.Logger) {
+		lf.Append(fx.Hook{
+			OnStart: func(context.Context) error {
+				go func() {
+					err := d.StartConsumingEvents(context.TODO())
+					if err != nil {
+						logr.Errorf(err, "could not process events")
+					}
+				}()
+				return nil
+			},
+			OnStop: func(ctx context.Context) error {
+				return nil
 			},
 		})
 	}),
 
 	fx.Invoke(
-		func(server httpServer.Server, envVars *env.Env, logr logging.Logger, d domain.Domain) error {
+		func(server httpServer.Server, d domain.Domain, mp domain.MeterProducer) error {
 			app := server.Raw()
 			app.Post(
 				"/meter", func(ctx *fiber.Ctx) error {
-					err := d.CreateMeter(ctx.Context(), &entities.Meter{
-						Slug:          "test",
-						Description:   "hello",
-						EventType:     "test",
-						Aggregation:   "sum",
-						ValueProperty: "$.sample",
-						GroupBy:       nil,
-					})
-					if errors.Is(err, domain.MeterAlreadyExistError) {
-						return ctx.Status(http.StatusConflict).JSON(map[string]string{"status": "conflict"})
+
+					var meter entities.Meter
+
+					err := ctx.BodyParser(&meter)
+					if err != nil {
+						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})
 					}
-					return err
+
+					if err := meter.IsValid(); err != nil {
+						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})
+					}
+
+					if err = d.RegisterMeter(ctx.Context(), meter); err != nil {
+						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})
+					}
+
+					d.AddMeterToConsume(&meter)
+
+					return ctx.Status(http.StatusAccepted).JSON(map[string]string{"status": "ok"})
 				},
 			)
+
+			app.Get(
+				"/meters", func(ctx *fiber.Ctx) error {
+					a, err := d.ListMeters(ctx.Context())
+					if err != nil {
+						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})
+					}
+
+					return ctx.Status(http.StatusOK).JSON(a)
+				},
+			)
+
+			app.Get(
+				"/meter", func(ctx *fiber.Ctx) error {
+					key, err := d.GetMeter(ctx.Context(), ctx.Query("key"))
+					if err != nil {
+						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})
+					}
+
+					return ctx.Status(http.StatusOK).JSON(key)
+				},
+			)
+			app.Get("/readings", func(ctx *fiber.Ctx) error {
+				a, err := d.ListReadings(ctx.Context(), ">")
+				if err != nil {
+					return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})
+				}
+
+				return ctx.Status(http.StatusOK).JSON(a)
+			})
+
 			app.Delete(
 				"/meter", func(ctx *fiber.Ctx) error {
+					key := ctx.Query("key", "")
+
+					if key == "" {
+						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": "key is required"})
+					}
+
+					if err := d.DeleteMeter(ctx.Context(), key); err != nil {
+						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})
+					}
+
+					d.RemoveMeterFromConsume(fmt.Sprintf("%x", md5.Sum([]byte(key))))
+
 					return ctx.Status(http.StatusAccepted).JSON(map[string]string{"status": "ok"})
 				},
 			)
+
 			app.Post(
 				"/event", func(ctx *fiber.Ctx) error {
+					var event entities.Event
+
+					m, err := d.ListMeters(ctx.Context())
+					if err != nil && err != jetstream.ErrKeyNotFound {
+						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})
+					}
+
+					if len(m) == 0 {
+						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": "no meter found with provided event type"})
+					}
+
+					if err := ctx.BodyParser(&event); err != nil {
+						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})
+					}
+
+					if err := event.IsValid(); err != nil {
+						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})
+					}
+
+					b, err := event.ToJson()
+					if err != nil {
+						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})
+					}
+
+					if err := mp.Produce(ctx.Context(), types.ProduceMsg{
+						Subject: fmt.Sprintf("meters.events.%s", event.Key()),
+						Payload: b,
+						MsgID:   functions.New(event.Id),
+					}); err != nil {
+						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})
+					}
+
 					return ctx.Status(http.StatusAccepted).JSON(map[string]string{"status": "ok"})
 				},
 			)
+
 			return nil
 		},
 	),
