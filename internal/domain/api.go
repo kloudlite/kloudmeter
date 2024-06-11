@@ -16,8 +16,9 @@ type MeterProducer messaging.Producer
 type Domain interface {
 	RegisterMeter(ctx context.Context, meter entities.Meter) error
 	ListMeters(ctx context.Context) ([]kv.Entry[*entities.Meter], error)
-	DeleteMeter(ctx context.Context, id string) error
-	GetMeter(ctx context.Context, id string) (*entities.Meter, error)
+	DeleteMeter(ctx context.Context, key string) error
+	GetMeter(ctx context.Context, key string) (*entities.Meter, error)
+	GetReading(ctx context.Context, key string) (*entities.Reading, error)
 
 	ListReadings(ctx context.Context, pattern string) ([]kv.Entry[*entities.Reading], error)
 

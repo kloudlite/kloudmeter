@@ -60,7 +60,7 @@ var Module = fx.Module("app",
 		func(server httpServer.Server, d domain.Domain, mp domain.MeterProducer) error {
 			app := server.Raw()
 			app.Post(
-				"/meter", func(ctx *fiber.Ctx) error {
+				"/api/create-meter", func(ctx *fiber.Ctx) error {
 
 					var meter entities.Meter
 
@@ -84,7 +84,7 @@ var Module = fx.Module("app",
 			)
 
 			app.Get(
-				"/meters", func(ctx *fiber.Ctx) error {
+				"/api/meters", func(ctx *fiber.Ctx) error {
 					a, err := d.ListMeters(ctx.Context())
 					if err != nil {
 						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})
@@ -95,7 +95,18 @@ var Module = fx.Module("app",
 			)
 
 			app.Get(
-				"/meter", func(ctx *fiber.Ctx) error {
+				"/api/readings", func(ctx *fiber.Ctx) error {
+					key, err := d.GetReading(ctx.Context(), ctx.Query("key"))
+					if err != nil {
+						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})
+					}
+
+					return ctx.Status(http.StatusOK).JSON(key)
+				},
+			)
+
+			app.Get(
+				"/api/meters", func(ctx *fiber.Ctx) error {
 					key, err := d.GetMeter(ctx.Context(), ctx.Query("key"))
 					if err != nil {
 						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})
@@ -104,7 +115,8 @@ var Module = fx.Module("app",
 					return ctx.Status(http.StatusOK).JSON(key)
 				},
 			)
-			app.Get("/readings", func(ctx *fiber.Ctx) error {
+
+			app.Get("/api/readings", func(ctx *fiber.Ctx) error {
 				a, err := d.ListReadings(ctx.Context(), ">")
 				if err != nil {
 					return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})
@@ -114,7 +126,7 @@ var Module = fx.Module("app",
 			})
 
 			app.Delete(
-				"/meter", func(ctx *fiber.Ctx) error {
+				"/api/meter", func(ctx *fiber.Ctx) error {
 					key := ctx.Query("key", "")
 
 					if key == "" {
@@ -132,7 +144,7 @@ var Module = fx.Module("app",
 			)
 
 			app.Post(
-				"/event", func(ctx *fiber.Ctx) error {
+				"/api/register-event", func(ctx *fiber.Ctx) error {
 					var event entities.Event
 
 					m, err := d.ListMeters(ctx.Context())
@@ -168,6 +180,14 @@ var Module = fx.Module("app",
 					return ctx.Status(http.StatusAccepted).JSON(map[string]string{"status": "ok"})
 				},
 			)
+
+			app.Get("/healthy", func(ctx *fiber.Ctx) error {
+				return ctx.Status(http.StatusOK).Send([]byte("OK"))
+			})
+
+			app.All("*", func(ctx *fiber.Ctx) error {
+				return ctx.Status(http.StatusNotFound).JSON(map[string]string{"status": "error", "message": "not found"})
+			})
 
 			return nil
 		},

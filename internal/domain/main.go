@@ -59,6 +59,17 @@ func (d *Impl) GetMeter(ctx context.Context, id string) (*entities.Meter, error)
 	return get, nil
 }
 
+func (d *Impl) GetReading(ctx context.Context, key string) (*entities.Reading, error) {
+	get, err := d.readingsRepo.Get(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	if get == nil {
+		return nil, errors.New("meter not found")
+	}
+	return get, nil
+}
+
 var Module = fx.Module("domain", fx.Provide(func(e *env.Env,
 	meterRepo kv.Repo[*entities.Meter],
 	readingsRepo kv.Repo[*entities.Reading],
