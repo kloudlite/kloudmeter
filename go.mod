@@ -14,7 +14,7 @@ require (
 	github.com/nats-io/nats.go v1.31.0
 	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.29.1
-	github.com/vektah/gqlparser/v2 v2.5.1
+	github.com/vektah/gqlparser/v2 v2.5.14
 	github.com/ztrue/tracerr v0.4.0
 	go.uber.org/fx v1.22.0
 	go.uber.org/zap v1.26.0
