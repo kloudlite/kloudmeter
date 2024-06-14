@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/kloudlite/kloudmeter/internal/domain/entities"
@@ -105,7 +106,7 @@ func (d *Impl) consumerController(ctx context.Context) (chan *entities.Meter, ch
 							Durable:     consumerName,
 							Description: "this consumer reads message from a subject dedicated to errors, that occurred when the resource was applied at the agent",
 							FilterSubjects: []string{
-								"meters.events.>",
+								fmt.Sprintf("meters.events.%s.>", up.EventType),
 							},
 						},
 					})
