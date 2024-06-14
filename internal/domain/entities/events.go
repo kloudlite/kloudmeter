@@ -1,11 +1,10 @@
 package entities
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
-
-	"github.com/kloudlite/kloudmeter/pkg/egob"
 )
 
 type Event struct {
@@ -22,11 +21,11 @@ func (e *Event) Key() string {
 }
 
 func (e *Event) ParseBytes(b []byte) error {
-	return egob.Unmarshal(b, e)
+	return json.Unmarshal(b, e)
 }
 
 func (e *Event) ToJson() ([]byte, error) {
-	return egob.Marshal(e)
+	return json.Marshal(e)
 }
 
 func (m *Event) IsValid() error {
