@@ -8,7 +8,7 @@ require (
 	github.com/codingconcepts/env v0.0.0-20200821220118-a8fbf8d84482
 	github.com/gobuffalo/flect v1.0.2
 	github.com/gofiber/adaptor/v2 v2.1.23
-	github.com/gofiber/fiber/v2 v2.52.1
+	github.com/gofiber/fiber/v2 v2.52.5
 	github.com/kloudlite/api v1.0.3
 	github.com/matoous/go-nanoid/v2 v2.0.0
 	github.com/nats-io/nats.go v1.31.0
