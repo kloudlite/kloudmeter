@@ -20,3 +20,10 @@ tasks:
   nats:start:
     cmds:
       - nats-server -js -c nats.conf
+  
+  nats:setup:reload:
+    cmds:
+      - nats kv del meters 
+      - nats kv del readings 
+      - nats stream rm meters
+      - task nats:setup

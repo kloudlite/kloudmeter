@@ -9,13 +9,14 @@ import (
 type AggType string
 
 const (
-	AggTypeCount AggType = "count"
-	AggTypeSum   AggType = "sum"
-	AggTypeAvg   AggType = "avg"
-	AggTypeMax   AggType = "max"
-	AggTypeMin   AggType = "min"
-	AggTypeRange AggType = "range"
-	AggTypeFunc  AggType = "func"
+	AggTypeCount  AggType = "count"
+	AggTypeSum    AggType = "sum"
+	AggTypeAvg    AggType = "avg"
+	AggTypeMax    AggType = "max"
+	AggTypeMin    AggType = "min"
+	AggTypeRange  AggType = "range"
+	AggTypeFunc   AggType = "func"
+	AggTypeUnique AggType = "unique"
 )
 
 type Meter struct {
