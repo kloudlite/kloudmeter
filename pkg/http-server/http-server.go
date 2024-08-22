@@ -93,7 +93,7 @@ func NewServer(args ServerArgs) Server {
 					AllowOrigins:     *args.CorsAllowOrigins,
 					AllowCredentials: true,
 					AllowMethods: strings.Join(
-						[]string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodOptions},
+						[]string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodOptions, http.MethodDelete},
 						",",
 					),
 				},

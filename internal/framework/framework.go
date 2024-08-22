@@ -33,6 +33,7 @@ var Module = fx.Module(
 
 	fx.Provide(func(logger logging.Logger, e *env.Env) httpServer.Server {
 		corsOrigins := "https://studio.apollographql.com"
+		//corsOrigins := "http://localhost:3000"
 		return httpServer.NewServer(httpServer.ServerArgs{Logger: logger, CorsAllowOrigins: &corsOrigins, IsDev: e.IsDev})
 	}),
 

@@ -108,6 +108,7 @@ func (d *Impl) updateReading(ctx context.Context, reading *entities.Reading, val
 		Max:     reading.Max,
 		Min:     reading.Min,
 		Count:   reading.Count,
+		Unique:  reading.Unique,
 	}
 
 	switch values.meter.Aggregation {
@@ -137,6 +138,24 @@ func (d *Impl) updateReading(ctx context.Context, reading *entities.Reading, val
 		}
 
 		value.Count = reading.Count + 1
+	case entities.AggTypeUnique:
+		val, err := dataOnPath[string](values.event.Data, values.valueProperty)
+		if err != nil {
+			return err
+		}
+
+		value.Unique = reading.Unique
+
+		if value.Unique == nil {
+			value.Unique = make(map[string]int)
+		}
+
+		if _, ok := value.Unique[*val]; !ok {
+			value.Unique[*val] = 1
+		} else {
+			value.Unique[*val] = value.Unique[*val] + 1
+		}
+
 	default:
 		return fmt.Errorf("unknown aggregation type: %s", values.meter.Aggregation)
 	}
@@ -176,6 +195,22 @@ func (d *Impl) createReading(ctx context.Context, values upsertValues) error {
 
 		case entities.AggTypeMin:
 			value.Min = *val
+		}
+
+	case entities.AggTypeUnique:
+		val, err := dataOnPath[string](values.event.Data, values.valueProperty)
+		if err != nil {
+			return err
+		}
+
+		if value.Unique == nil {
+			value.Unique = make(map[string]int)
+		}
+
+		if _, ok := value.Unique[*val]; !ok {
+			value.Unique[*val] = 1
+		} else {
+			value.Unique[*val] = value.Unique[*val] + 1
 		}
 
 	default:

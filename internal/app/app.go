@@ -95,7 +95,7 @@ var Module = fx.Module("app",
 			)
 
 			app.Get(
-				"/api/readings", func(ctx *fiber.Ctx) error {
+				"/api/reading", func(ctx *fiber.Ctx) error {
 					key, err := d.GetReading(ctx.Context(), ctx.Query("key"))
 					if err != nil {
 						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})
@@ -106,7 +106,7 @@ var Module = fx.Module("app",
 			)
 
 			app.Get(
-				"/api/meters", func(ctx *fiber.Ctx) error {
+				"/api/meter", func(ctx *fiber.Ctx) error {
 					key, err := d.GetMeter(ctx.Context(), ctx.Query("key"))
 					if err != nil {
 						return ctx.Status(http.StatusBadRequest).JSON(map[string]string{"status": "error", "message": err.Error()})

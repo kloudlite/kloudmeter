@@ -136,7 +136,7 @@ KloudMeter can be configured via environment variables or a configuration file.
 
 ### Get Meter
 
-**Endpoint:** `/api/meters/?key={key}`  
+**Endpoint:** `/api/meter/?key={key}`  
 **Method:** `GET`  
 **Description:** Retrieves details of a specific meter by ID.
 
@@ -148,7 +148,7 @@ KloudMeter can be configured via environment variables or a configuration file.
 
 ### Get Reading
 
-**Endpoint:** `/api/readings/?key={key}`  
+**Endpoint:** `/api/reading/?key={key}`  
 **Method:** `GET`  
 **Description:** Retrieves details of a specific reading by ID.
 

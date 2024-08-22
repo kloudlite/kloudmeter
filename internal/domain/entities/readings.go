@@ -15,6 +15,8 @@ type Reading struct {
 	Min   float64 `json:"min,omitempty"`
 
 	Func string `json:"func,omitempty"`
+
+	Unique map[string]int `json:"unique,omitempty"`
 }
 
 // func (r *Reading) Key() string {
