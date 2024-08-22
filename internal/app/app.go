@@ -127,7 +127,6 @@ var Module = fx.Module("app",
 
 			app.Delete(
 				"/api/meter", func(ctx *fiber.Ctx) error {
-					fmt.Println("delete meter", ctx.Query("key", ""))
 					key := ctx.Query("key", "")
 
 					if key == "" {
