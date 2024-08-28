@@ -17,6 +17,7 @@ type ConsumerManager interface {
 	GetConsumerInfo(ctx context.Context, stream string, consumer string) (*jetstream.ConsumerInfo, error)
 	ListConsumers(ctx context.Context, stream string) ([]*jetstream.ConsumerInfo, error)
 	DeleteConsumer(ctx context.Context, stream string, consumer string) error
+	CreateStream(ctx context.Context, streamConfig *jetstream.StreamConfig) (*jetstream.Stream, error)
 }
 
 var _ ConsumerManager = (*JetstreamClient)(nil)
@@ -57,6 +58,20 @@ func (jc *JetstreamClient) GetConsumerInfo(ctx context.Context, stream string, c
 	}
 
 	return c.Info(ctx)
+}
+
+func (jc *JetstreamClient) CreateStream(ctx context.Context, streamConfig *jetstream.StreamConfig) (*jetstream.Stream, error) {
+	stream, err := jc.Jetstream.Stream(ctx, streamConfig.Name)
+	if err == nil {
+		return &stream, nil
+	}
+
+	stream, err = jc.Jetstream.CreateStream(ctx, *streamConfig)
+	if err != nil {
+		return nil, errors.NewE(err)
+	}
+
+	return &stream, nil
 }
 
 func NewJetstreamClient(nc *Client) (*JetstreamClient, error) {

@@ -102,17 +102,41 @@ func (d *Impl) consumerController(ctx context.Context) (chan *entities.Meter, ch
 					consumer, err := msg_nats.NewJetstreamConsumer(ctx, d.jc, msg_nats.JetstreamConsumerArgs{
 						Stream: d.env.MeterNatsStream,
 						ConsumerConfig: msg_nats.ConsumerConfig{
-							Name:        consumerName,
-							Durable:     consumerName,
-							Description: "this consumer reads message from a subject dedicated to errors, that occurred when the resource was applied at the agent",
-							FilterSubjects: []string{
-								fmt.Sprintf("meters.events.%s.>", up.EventType),
-							},
+							Name:          consumerName,
+							Durable:       consumerName,
+							Description:   "This consumer reads messages from a subject dedicated to errors that occurred when the resource was applied at the agent",
+							FilterSubject: fmt.Sprintf("meters.events.%s.>", up.EventType),
 						},
 					})
 
-					if err != nil {
-						d.logger.Errorf(err, "error while creating consumer")
+					if err != nil && errors.Is(err, jetstream.ErrStreamNotFound) {
+						streamConfig := &jetstream.StreamConfig{
+							Name:     d.env.MeterNatsStream,
+							Subjects: []string{"meters.>"},
+							// Set other stream configurations as needed (defaults)
+						}
+
+						_, err = d.jc.CreateStream(ctx, streamConfig)
+						if err != nil {
+							d.logger.Errorf(err, "error creating stream: %v")
+							return
+						}
+
+						consumer, err = msg_nats.NewJetstreamConsumer(ctx, d.jc, msg_nats.JetstreamConsumerArgs{
+							Stream: d.env.MeterNatsStream,
+							ConsumerConfig: msg_nats.ConsumerConfig{
+								Name:          consumerName,
+								Durable:       consumerName,
+								Description:   "This consumer reads messages from a subject dedicated to errors that occurred when the resource was applied at the agent",
+								FilterSubject: fmt.Sprintf("meters.events.%s.>", up.EventType),
+							},
+						})
+						if err != nil {
+							d.logger.Errorf(err, "error while creating consumer after stream creation: %v")
+							return
+						}
+					} else if err != nil {
+						d.logger.Errorf(err, "error while creating consumer: %v")
 						return
 					}
 
