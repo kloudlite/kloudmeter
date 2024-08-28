@@ -22,7 +22,7 @@ var Module = fx.Module(
 
 	fx.Provide(func(ev *env.Env, logger logging.Logger) (*nats.Client, error) {
 		return nats.NewClient(ev.NatsURL, nats.ClientOpts{
-			Name:   "meters",
+			Name:   ev.MeterNatsStream,
 			Logger: logger,
 		})
 	}),
@@ -32,8 +32,7 @@ var Module = fx.Module(
 	}),
 
 	fx.Provide(func(logger logging.Logger, e *env.Env) httpServer.Server {
-		corsOrigins := "https://studio.apollographql.com"
-		//corsOrigins := "http://localhost:3000"
+		corsOrigins := "https://studio.apollographql.com,http://localhost:3000"
 		return httpServer.NewServer(httpServer.ServerArgs{Logger: logger, CorsAllowOrigins: &corsOrigins, IsDev: e.IsDev})
 	}),
 

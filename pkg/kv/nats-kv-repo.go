@@ -201,7 +201,23 @@ func (r *natsKVRepo[T]) ErrNoRecord(err error) bool {
 }
 
 func NewNatsKVRepo[T any](ctx context.Context, bucketName string, jc *nats.JetstreamClient) (Repo[T], error) {
-	if value, err := jc.Jetstream.KeyValue(ctx, bucketName); err != nil {
+	if value, err := jc.Jetstream.KeyValue(ctx, bucketName); err != nil && errors.Is(err, jetstream.ErrBucketNotFound) {
+		_, err := jc.Jetstream.CreateKeyValue(ctx, jetstream.KeyValueConfig{
+			Bucket: bucketName,
+		})
+		if err != nil {
+			return nil, errors.NewE(err)
+		}
+
+		value, err = jc.Jetstream.KeyValue(ctx, bucketName)
+		if err != nil {
+			return nil, errors.NewE(err)
+		} else {
+			return &natsKVRepo[T]{
+				value,
+			}, nil
+		}
+	} else if err != nil {
 		return nil, errors.NewE(err)
 	} else {
 		return &natsKVRepo[T]{

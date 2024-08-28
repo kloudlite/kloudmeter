@@ -27,3 +27,18 @@ tasks:
       - nats kv del readings 
       - nats stream rm meters
       - task nats:setup
+
+  docker:build:local:
+    cmds:
+      - docker build -t kloudmeter:latest .
+      - docker run -d -p 8080:8080 -p 4222:4222 --name kloudmeter kloudmeter:latest
+
+  docker:push:
+    preconditions:
+      - sh: '[[ -n "{{.tag}}" ]]'
+        msg: "var tag must have a value, of format 'v1.0.0-nightly'"
+    cmds:
+      #- docker build -t kloudmeter:latest .
+      #- docker run -d -p 8080:8080 -p 4222:4222 --name kloudmeter kloudmeter:latest
+      #- docker tag kloudmeter:latest ghcr.io/kloudlite/kloudmeter/kloudmeter:latest
+      - docker buildx build --build-arg VERSION={{.tag}} -t ghcr.io/kloudlite/kloudmeter:{{.tag}} . --push
