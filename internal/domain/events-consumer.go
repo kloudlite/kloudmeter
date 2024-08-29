@@ -147,7 +147,7 @@ func (d *Impl) consumerController(ctx context.Context) (chan *entities.Meter, ch
 							return err
 						}
 
-						if err := d.updateReadings(ctx, up, &event); err != nil {
+						if err := d.updateReadings(DContext{Context: ctx, MsgTime: msg.Timestamp}, up, &event); err != nil {
 							d.logger.Errorf(err, "could not update readings")
 						}
 

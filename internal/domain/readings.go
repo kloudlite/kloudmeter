@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/PaesslerAG/jsonpath"
 	"github.com/kloudlite/kloudmeter/internal/domain/entities"
@@ -11,6 +12,11 @@ import (
 	"github.com/kloudlite/kloudmeter/pkg/messaging/types"
 	"github.com/nats-io/nats.go/jetstream"
 )
+
+type DContext struct {
+	Context context.Context
+	MsgTime time.Time
+}
 
 func (d *Impl) ListReadings(ctx context.Context, pattern string) ([]kv.Entry[*entities.Reading], error) {
 	return d.readingsRepo.Entries(ctx, pattern)
@@ -24,8 +30,8 @@ type upsertValues struct {
 	valueProperty string
 }
 
-func (d *Impl) upsertReadings(ctx context.Context, values upsertValues) error {
-	reading, err := d.readingsRepo.Get(ctx, values.key)
+func (d *Impl) upsertReadings(ctx DContext, values upsertValues) error {
+	reading, err := d.readingsRepo.Get(ctx.Context, values.key)
 	if err != nil && err != jetstream.ErrKeyNotFound {
 		return err
 	}
@@ -37,7 +43,7 @@ func (d *Impl) upsertReadings(ctx context.Context, values upsertValues) error {
 	return d.updateReading(ctx, reading, values)
 }
 
-func (d *Impl) updateReadings(ctx context.Context, meter *entities.Meter, event *entities.Event) error {
+func (d *Impl) updateReadings(ctx DContext, meter *entities.Meter, event *entities.Event) error {
 
 	key := fmt.Sprintf("%s.%s", meter.Key(), event.Subject)
 	if err := d.upsertReadings(ctx, upsertValues{
@@ -54,7 +60,7 @@ func (d *Impl) updateReadings(ctx context.Context, meter *entities.Meter, event 
 			d.logger.Errorf(err, "faild to marshal json")
 		} else {
 
-			if err := d.meterProducer.Produce(ctx, types.ProduceMsg{
+			if err := d.meterProducer.Produce(ctx.Context, types.ProduceMsg{
 				Subject: fmt.Sprintf("meters.event-errors.%s", event.Key()),
 				Payload: b,
 				MsgID:   &event.Id,
@@ -82,7 +88,7 @@ func (d *Impl) updateReadings(ctx context.Context, meter *entities.Meter, event 
 				continue
 			}
 
-			if err := d.meterProducer.Produce(ctx, types.ProduceMsg{
+			if err := d.meterProducer.Produce(ctx.Context, types.ProduceMsg{
 				Subject: fmt.Sprintf("meters.event-errors.%s", event.Key()),
 				Payload: b,
 				MsgID:   &event.Id,
@@ -96,7 +102,7 @@ func (d *Impl) updateReadings(ctx context.Context, meter *entities.Meter, event 
 	return nil
 }
 
-func (d *Impl) updateReading(ctx context.Context, reading *entities.Reading, values upsertValues) error {
+func (d *Impl) updateReading(ctx DContext, reading *entities.Reading, values upsertValues) error {
 	value := &entities.Reading{
 		Event:   reading.Event,
 		MeterId: reading.MeterId,
@@ -114,7 +120,7 @@ func (d *Impl) updateReading(ctx context.Context, reading *entities.Reading, val
 	switch values.meter.Aggregation {
 	case entities.AggTypeCount:
 		value.Count = reading.Count + 1
-	case entities.AggTypeSum, entities.AggTypeAvg, entities.AggTypeMax, entities.AggTypeMin:
+	case entities.AggTypeSum, entities.AggTypeAvg, entities.AggTypeMax, entities.AggTypeMin, entities.AggTypeDuration:
 		val, err := dataOnPath[float64](values.event.Data, values.valueProperty)
 		if err != nil {
 			return err
@@ -134,6 +140,15 @@ func (d *Impl) updateReading(ctx context.Context, reading *entities.Reading, val
 		case entities.AggTypeMin:
 			if value.Min > *val {
 				value.Min = *val
+			}
+
+		case entities.AggTypeDuration:
+			totalDurr := ctx.MsgTime.Sub(reading.DurationData.LastCalculated)
+			totalUnit := totalDurr.Seconds() * reading.DurationData.Unit
+			value.DurationData = entities.DurationData{
+				Total:          reading.DurationData.Total + totalUnit,
+				Unit:           *val,
+				LastCalculated: ctx.MsgTime,
 			}
 		}
 
@@ -160,10 +175,10 @@ func (d *Impl) updateReading(ctx context.Context, reading *entities.Reading, val
 		return fmt.Errorf("unknown aggregation type: %s", values.meter.Aggregation)
 	}
 
-	return d.readingsRepo.Set(ctx, values.key, value)
+	return d.readingsRepo.Set(ctx.Context, values.key, value)
 }
 
-func (d *Impl) createReading(ctx context.Context, values upsertValues) error {
+func (d *Impl) createReading(ctx DContext, values upsertValues) error {
 
 	value := &entities.Reading{
 		Event:   values.meter.EventType,
@@ -177,7 +192,7 @@ func (d *Impl) createReading(ctx context.Context, values upsertValues) error {
 	switch values.meter.Aggregation {
 
 	case entities.AggTypeCount:
-	case entities.AggTypeSum, entities.AggTypeAvg, entities.AggTypeMax, entities.AggTypeMin:
+	case entities.AggTypeSum, entities.AggTypeAvg, entities.AggTypeMax, entities.AggTypeMin, entities.AggTypeDuration:
 		val, err := dataOnPath[float64](values.event.Data, values.valueProperty)
 		if err != nil {
 			return err
@@ -195,6 +210,12 @@ func (d *Impl) createReading(ctx context.Context, values upsertValues) error {
 
 		case entities.AggTypeMin:
 			value.Min = *val
+		case entities.AggTypeDuration:
+			value.DurationData = entities.DurationData{
+				Unit:           *val,
+				LastCalculated: ctx.MsgTime,
+				Total:          0,
+			}
 		}
 
 	case entities.AggTypeUnique:
@@ -217,7 +238,7 @@ func (d *Impl) createReading(ctx context.Context, values upsertValues) error {
 		return fmt.Errorf("unknown aggregation type: %s", values.meter.Aggregation)
 	}
 
-	return d.readingsRepo.Set(ctx, values.key, value)
+	return d.readingsRepo.Set(ctx.Context, values.key, value)
 }
 
 func dataOnPath[T any](data map[string]any, jsPath string) (*T, error) {
