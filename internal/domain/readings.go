@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"crypto/md5"
 	"fmt"
 	"reflect"
 	"time"
@@ -72,13 +73,25 @@ func (d *Impl) updateReadings(ctx DContext, meter *entities.Meter, event *entiti
 	}
 
 	for k, segment := range meter.GroupBy {
-		key := fmt.Sprintf("%s.%s.%s", meter.Key(), event.Subject, k)
+
+		val, err := dataOnPath[string](event.Data, segment)
+		if err != nil {
+			d.logger.Warnf("failed to get value for segment %s: %s", segment, err)
+			continue
+		}
+
+		// md5 hash of the segment value
+		hash := fmt.Sprintf("%x", md5.Sum([]byte(*val)))
+
+		key := fmt.Sprintf("%s.%s.%s.%s", meter.Key(), event.Subject, k, hash)
+
+		fmt.Println(key)
 		if err := d.upsertReadings(ctx, upsertValues{
 			meter:         meter,
 			event:         event,
 			segment:       k,
 			key:           key,
-			valueProperty: segment,
+			valueProperty: meter.ValueProperty,
 		}); err != nil {
 			d.logger.Errorf(err, "failed to updateReadings")
 
@@ -144,7 +157,7 @@ func (d *Impl) updateReading(ctx DContext, reading *entities.Reading, values ups
 
 		case entities.AggTypeDuration:
 			totalDurr := ctx.MsgTime.Sub(reading.DurationData.LastCalculated)
-			totalUnit := totalDurr.Seconds() * reading.DurationData.Unit
+			totalUnit := totalDurr.Hours() * reading.DurationData.Unit
 			value.DurationData = entities.DurationData{
 				Total:          reading.DurationData.Total + totalUnit,
 				Unit:           *val,
