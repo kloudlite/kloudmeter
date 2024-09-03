@@ -2,7 +2,8 @@ package domain
 
 import (
 	"context"
-	"crypto/md5"
+	// "crypto/md5"
+	"encoding/base64"
 	"fmt"
 	"reflect"
 	"time"
@@ -81,7 +82,10 @@ func (d *Impl) updateReadings(ctx DContext, meter *entities.Meter, event *entiti
 		}
 
 		// md5 hash of the segment value
-		hash := fmt.Sprintf("%x", md5.Sum([]byte(*val)))
+		// hash := fmt.Sprintf("%x", md5.Sum([]byte(*val)))
+
+		// base64 encode the hash
+		hash := base64.StdEncoding.EncodeToString([]byte(*val))
 
 		key := fmt.Sprintf("%s.%s.%s.%s", meter.Key(), event.Subject, k, hash)
 
